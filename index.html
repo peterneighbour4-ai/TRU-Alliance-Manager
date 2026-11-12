@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0b0d13">
 <title>TRU Alliance Manager</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0b0d13;color:#eee5cb;font-family:Arial,sans-serif}
@@ -14,10 +14,11 @@ h1,h2{color:#e6c778;margin-top:0}
 h1{letter-spacing:3px;margin-bottom:8px}
 header p,.muted{color:#9ba2b4}
 nav{display:flex;gap:8px;padding:12px;overflow-x:auto}
-button{background:#1a2030;color:#d9c58f;border:1px solid #51472f;padding:12px 16px;border-radius:9px;white-space:nowrap}
+button{background:#1a2030;color:#d9c58f;border:1px solid #51472f;padding:12px 16px;border-radius:9px;white-space:nowrap;cursor:pointer}
 button.active{background:#8b7139;color:white}
 main{padding:15px;max-width:1100px;margin:auto}
-.tab{display:none}.tab.active{display:block}
+.tab{display:none}
+.tab.active{display:block}
 .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .card,.panel{background:#171d2a;border:1px solid #34394a;border-radius:13px;padding:16px;margin-bottom:12px}
 .number{font-size:25px;font-weight:bold;color:#e6c778}
@@ -29,17 +30,25 @@ th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a}
 th{color:#e6c778}
 .tablewrap{overflow-x:auto}
 .status{color:#9ba2b4;font-size:13px}
-.good{color:#8bd49a}.bad{color:#ff9999}
+.good{color:#8bd49a}
+.bad{color:#ff9999}
+.warning{color:#e6c778}
 footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
+button:disabled{opacity:.5;cursor:wait}
+@media(min-width:700px){
+.stats{grid-template-columns:repeat(4,1fr)}
+}
 </style>
 </head>
+
 <body>
+
 <header>
 <h1>TRU</h1>
 <p>Alliance Management · Kingdom 2443</p>
 <div class="row">
 <span id="connection" class="status">Connecting to MightPulse...</span>
-<button onclick="loadAlliance()">↻ Refresh data</button>
+<button id="refreshButton" onclick="loadAlliance()">↻ Refresh data</button>
 </div>
 </header>
 
@@ -51,32 +60,62 @@ footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 </nav>
 
 <main>
+
 <div id="dashboard" class="tab active">
 <h2>Alliance Overview</h2>
+
 <div class="stats">
-<div class="card"><div class="number" id="memberCount">--</div><p>Members</p></div>
-<div class="card"><div class="number" id="totalPower">--</div><p>Total Power</p></div>
-<div class="card"><div class="number" id="totalKills">--</div><p>Total Kills</p></div>
-<div class="card"><div class="number" id="updated">--</div><p>Last Updated</p></div>
+<div class="card">
+<div class="number" id="memberCount">--</div>
+<p>Members</p>
 </div>
+
+<div class="card">
+<div class="number" id="totalPower">--</div>
+<p>Total Power</p>
+</div>
+
+<div class="card">
+<div class="number" id="totalKills">--</div>
+<p>Total Kills</p>
+</div>
+
+<div class="card">
+<div class="number" id="updated">--</div>
+<p>Last Updated</p>
+</div>
+</div>
+
 <section>
 <h2>Alliance Information</h2>
 <div class="panel">
 <strong>TRU – Kingdom 2443</strong>
 <p class="muted">Live alliance data powered by MightPulse.</p>
 <p id="summary" class="status">Waiting for alliance data...</p>
+<p id="dataQuality" class="status"></p>
 </div>
 </section>
 </div>
 
 <div id="members" class="tab">
 <h2>Member Management</h2>
+
 <input id="search" placeholder="Search members..." oninput="renderMembers()">
+
 <div class="panel">
 <div class="tablewrap">
 <table>
-<thead><tr><th>Player</th><th>Power / Might</th><th>Kills</th><th>Town Centre</th></tr></thead>
-<tbody id="memberRows"><tr><td colspan="4">Loading members...</td></tr></tbody>
+<thead>
+<tr>
+<th>Player</th>
+<th>Power / Might</th>
+<th>Kills</th>
+<th>Town Centre</th>
+</tr>
+</thead>
+<tbody id="memberRows">
+<tr><td colspan="4">Loading members...</td></tr>
+</tbody>
 </table>
 </div>
 </div>
@@ -91,110 +130,424 @@ footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 <h2>Castle Battle</h2>
 <div class="panel">Battle planning and player assignments coming soon.</div>
 </div>
+
 </main>
 
 <footer>TRU ALLIANCE MANAGER · KINGDOM 2443</footer>
 
 <script>
+
 const API_URL="https://mightpulse-api.peter-neighbour4.workers.dev";
+
 let members=[];
+let loading=false;
+
+/* TAB NAVIGATION */
 
 function showTab(id,button){
- document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
- document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
- document.getElementById(id).classList.add('active');
- button.classList.add('active');
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+button.classList.add('active');
 }
 
-function findArray(data){
- if(Array.isArray(data)){
-  if(data.length && typeof data[0]==='object') return data;
-  return [];
- }
- if(!data || typeof data!=='object') return [];
- const preferred=['members_full','members','member_list','players','data','alliance'];
- for(const key of preferred){
-  if(data[key]){
-   const result=findArray(data[key]);
-   if(result.length) return result;
-  }
- }
- for(const value of Object.values(data)){
-  const result=findArray(value);
-  if(result.length) return result;
- }
- return [];
+/* NORMALISE FIELD NAMES */
+
+function normalise(key){
+return String(key).toLowerCase().replace(/[^a-z0-9]/g,'');
 }
 
-function getValue(obj,keys){
- for(const key of keys){
-  if(obj[key]!==undefined && obj[key]!==null) return obj[key];
- }
- return null;
+/* FIND VALUES USING MULTIPLE POSSIBLE API FIELD NAMES */
+
+function getValue(obj,keys,depth=0){
+
+if(!obj || typeof obj!=='object' || depth>3) return null;
+
+const wanted=keys.map(normalise);
+const entries=Object.entries(obj);
+
+for(const [key,value] of entries){
+if(wanted.includes(normalise(key)) &&
+value!==null && value!==undefined && value!==''){
+if(typeof value==='object'){
+return value.name ?? value.value ?? value.total ?? value.nickname ?? null;
 }
+return value;
+}
+}
+
+for(const [key,value] of entries){
+if(value && typeof value==='object' && !Array.isArray(value)){
+const found=getValue(value,keys,depth+1);
+if(found!==null) return found;
+}
+}
+
+return null;
+}
+
+/* PLAYER NAME FIELD MAPPING */
+
+function playerName(m){
+const value=getValue(m,[
+'name',
+'player_name',
+'playerName',
+'nickname',
+'username',
+'display_name',
+'displayName',
+'character_name',
+'characterName',
+'governor_name',
+'governorName',
+'king_name',
+'kingName',
+'commander_name',
+'commanderName',
+'leader_name',
+'leaderName',
+'player',
+'governor',
+'character',
+'account_name',
+'accountName'
+]);
+
+return value===null ? 'Unknown' : String(value);
+}
+
+/* POWER FIELD MAPPING */
+
+function playerPower(m){
+return getValue(m,[
+'power',
+'might',
+'total_power',
+'totalPower',
+'f_power',
+'player_power',
+'playerPower',
+'combat_power',
+'combatPower',
+'overall_power',
+'overallPower',
+'power_value',
+'powerValue'
+]);
+}
+
+/* KILL FIELD MAPPING */
+
+function playerKills(m){
+return getValue(m,[
+'kills',
+'kill',
+'kill_points',
+'killPoints',
+'total_kills',
+'totalKills',
+'total_kill',
+'totalKill',
+'kill_count',
+'killCount',
+'player_kills',
+'playerKills',
+'kill_score',
+'killScore',
+'killed_units',
+'killedUnits',
+'troops_killed',
+'troopsKilled',
+'enemy_kills',
+'enemyKills',
+'combat_kills',
+'combatKills'
+]);
+}
+
+/* TOWN CENTRE FIELD MAPPING */
+
+function playerLevel(m){
+return getValue(m,[
+'town_center_level',
+'townCenterLevel',
+'townhall_level',
+'townhallLevel',
+'town_hall_level',
+'townHallLevel',
+'tc_level',
+'tcLevel',
+'city_level',
+'cityLevel',
+'headquarters_level',
+'headquartersLevel',
+'level'
+]);
+}
+
+/* NUMBER FORMATTING */
 
 function number(value){
- if(value===null || value===undefined) return 0;
- if(typeof value==='object') value=value.value??value.total??0;
- return Number(String(value).replace(/,/g,''))||0;
+
+if(value===null || value===undefined || value==='') return 0;
+
+if(typeof value==='object'){
+value=value.value ?? value.total ?? value.amount ?? 0;
+}
+
+if(typeof value==='string'){
+value=value.replace(/,/g,'').trim();
+}
+
+const result=Number(value);
+
+return Number.isFinite(result) ? result : 0;
 }
 
 function format(value){
- return number(value).toLocaleString();
+return number(value).toLocaleString('en-GB');
 }
 
-function renderMembers(){
- const query=document.getElementById('search').value.toLowerCase();
- const filtered=members.filter(m=>{
-  const name=String(getValue(m,['name','player_name','nickname','username'])??'Unknown');
-  return name.toLowerCase().includes(query);
- });
- document.getElementById('memberRows').innerHTML=filtered.length?
- filtered.map(m=>{
-  const name=getValue(m,['name','player_name','nickname','username'])??'Unknown';
-  const power=getValue(m,['power','might','total_power','f_power']);
-  const kills=getValue(m,['kills','kill_points','total_kills']);
-  const level=getValue(m,['town_center_level','townhall_level','tc_level','level']);
-  return `<tr><td>${safe(name)}</td><td>${power===null?'--':format(power)}</td><td>${kills===null?'--':format(kills)}</td><td>${level??'--'}</td></tr>`;
- }).join(''):
- '<tr><td colspan="4">No members found.</td></tr>';
+/* FIND THE CORRECT MEMBER ARRAY */
+
+function findArray(data){
+
+if(Array.isArray(data)){
+return data.length && typeof data[0]==='object' ? data : [];
 }
+
+if(!data || typeof data!=='object') return [];
+
+const preferred=[
+'members_full',
+'members',
+'member_list',
+'memberList',
+'alliance_members',
+'allianceMembers',
+'players',
+'roster',
+'alliance'
+];
+
+for(const key of preferred){
+
+const match=Object.keys(data).find(
+k=>normalise(k)===normalise(key)
+);
+
+if(match){
+const result=findArray(data[match]);
+if(result.length) return result;
+}
+}
+
+let best=[];
+let bestScore=0;
+
+for(const value of Object.values(data)){
+
+if(Array.isArray(value) && value.length){
+
+const sample=value.find(x=>x && typeof x==='object');
+
+if(sample){
+
+const keys=Object.keys(sample).map(normalise);
+
+let score=0;
+
+if(keys.some(k=>['name','playername','nickname','username','governorname'].includes(k))) score+=5;
+if(keys.some(k=>['power','might','totalpower'].includes(k))) score+=3;
+if(keys.some(k=>['kills','killpoints','totalkills','killcount'].includes(k))) score+=3;
+if(keys.some(k=>['playerid','userid','governorid','id'].includes(k))) score+=2;
+
+if(score>bestScore){
+bestScore=score;
+best=value;
+}
+}
+}
+
+if(value && typeof value==='object' && !Array.isArray(value)){
+const result=findArray(value);
+if(result.length) return result;
+}
+}
+
+return best;
+}
+
+/* SAFE HTML OUTPUT */
 
 function safe(value){
- const el=document.createElement('span');
- el.textContent=String(value);
- return el.innerHTML;
+const el=document.createElement('span');
+el.textContent=String(value);
+return el.innerHTML;
 }
 
-async function loadAlliance(){
- const status=document.getElementById('connection');
- status.textContent='Connecting...';
- status.className='status';
- try{
-  const response=await fetch(API_URL,{headers:{'Accept':'application/json'}});
-  if(!response.ok) throw new Error('API returned HTTP '+response.status);
-  const data=await response.json();
-  members=findArray(data);
-  if(!members.length) throw new Error('Connected, but member data format needs mapping.');
-  document.getElementById('memberCount').textContent=members.length;
-  const power=members.reduce((sum,m)=>sum+number(getValue(m,['power','might','total_power','f_power'])),0);
-  const kills=members.reduce((sum,m)=>sum+number(getValue(m,['kills','kill_points','total_kills'])),0);
-  document.getElementById('totalPower').textContent=format(power);
-  document.getElementById('totalKills').textContent=format(kills);
-  document.getElementById('updated').textContent=new Date().toLocaleTimeString();
-  document.getElementById('summary').textContent='Successfully loaded '+members.length+' alliance members.';
-  renderMembers();
-  status.textContent='● MightPulse connected';
-  status.className='status good';
- }catch(error){
-  status.textContent='● Connection/data error';
-  status.className='status bad';
-  document.getElementById('summary').textContent=error.message;
-  document.getElementById('memberRows').innerHTML='<tr><td colspan="4">'+safe(error.message)+'</td></tr>';
-  console.error(error);
- }
+/* RENDER MEMBERS */
+
+function renderMembers(){
+
+const query=document.getElementById('search').value.toLowerCase();
+
+const filtered=members.filter(m=>{
+
+const name=playerName(m);
+
+return name.toLowerCase().includes(query);
+});
+
+document.getElementById('memberRows').innerHTML=
+
+filtered.length ?
+
+filtered.map(m=>{
+
+const name=playerName(m);
+const power=playerPower(m);
+const kills=playerKills(m);
+const level=playerLevel(m);
+
+return `
+<tr>
+<td>${safe(name)}</td>
+<td>${power===null?'--':format(power)}</td>
+<td>${kills===null?'--':format(kills)}</td>
+<td>${level===null?'--':safe(level)}</td>
+</tr>
+`;
+
+}).join('') :
+
+'<tr><td colspan="4">No members found.</td></tr>';
 }
+
+/* LOAD ALLIANCE DATA */
+
+async function loadAlliance(){
+
+if(loading) return;
+
+loading=true;
+
+const status=document.getElementById('connection');
+const button=document.getElementById('refreshButton');
+
+status.textContent='Connecting to MightPulse...';
+status.className='status';
+
+button.disabled=true;
+
+const controller=new AbortController();
+const timeout=setTimeout(()=>controller.abort(),30000);
+
+try{
+
+const response=await fetch(API_URL,{
+headers:{'Accept':'application/json'},
+signal:controller.signal,
+cache:'no-store'
+});
+
+if(!response.ok){
+throw new Error('API returned HTTP '+response.status);
+}
+
+const data=await response.json();
+
+const newMembers=findArray(data);
+
+if(!newMembers.length){
+console.log('MIGHTPULSE RESPONSE:',data);
+throw new Error('Connected, but the member list could not be identified. Check API data structure.');
+}
+
+members=newMembers;
+
+const knownNames=members.filter(m=>playerName(m)!=='Unknown').length;
+
+const knownKills=members.filter(m=>playerKills(m)!==null).length;
+
+const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+const totalPower=members.reduce(
+(sum,m)=>sum+number(playerPower(m)),0
+);
+
+const totalKills=members.reduce(
+(sum,m)=>sum+number(playerKills(m)),0
+);
+
+document.getElementById('memberCount').textContent=
+members.length.toLocaleString('en-GB');
+
+document.getElementById('totalPower').textContent=
+format(totalPower);
+
+document.getElementById('totalKills').textContent=
+format(totalKills);
+
+document.getElementById('updated').textContent=
+new Date().toLocaleTimeString('en-GB');
+
+document.getElementById('summary').textContent=
+'Successfully loaded '+members.length+' alliance members.';
+
+document.getElementById('dataQuality').textContent=
+'Names found: '+knownNames+'/'+members.length+
+' · Kill records found: '+knownKills+'/'+members.length+
+' · Power records found: '+knownPower+'/'+members.length;
+
+document.getElementById('dataQuality').className=
+knownNames===members.length && knownKills===members.length
+?'status good':'status warning';
+
+renderMembers();
+
+status.textContent='● MightPulse connected';
+status.className='status good';
+
+console.log('MIGHTPULSE RESPONSE:',data);
+console.log('MEMBER FIELD NAMES:',members[0]?Object.keys(members[0]):[]);
+console.log('FIRST MEMBER RECORD:',members[0]);
+console.log('MEMBERS LOADED:',members.length);
+console.log('NAMES FOUND:',knownNames);
+console.log('KILL RECORDS FOUND:',knownKills);
+
+}catch(error){
+
+status.textContent='● Connection/data error';
+status.className='status bad';
+
+document.getElementById('summary').textContent=
+error.name==='AbortError'
+?'MightPulse request timed out after 30 seconds.'
+:error.message;
+
+console.error('TRU DATA ERROR:',error);
+
+if(!members.length){
+document.getElementById('memberRows').innerHTML=
+'<tr><td colspan="4">'+safe(error.message)+'</td></tr>';
+}
+
+}finally{
+
+clearTimeout(timeout);
+loading=false;
+button.disabled=false;
+
+}
+
+}
+
+/* INITIAL LOAD */
+
 loadAlliance();
+
 </script>
 </body>
 </html>
