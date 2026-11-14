@@ -13,6 +13,13 @@ header{padding:25px 18px;background:#151925;border-bottom:1px solid #92783d}
 h1,h2{color:#e6c778;margin-top:0}
 h1{letter-spacing:3px;margin-bottom:8px}
 header p,.muted{color:#9ba2b4}
+.creator-credit{
+ color:#927f55;
+ font-size:11px;
+ letter-spacing:1px;
+ margin-top:-8px;
+ margin-bottom:15px;
+}
 nav{display:flex;gap:8px;padding:12px;overflow-x:auto}
 button{background:#1a2030;color:#d9c58f;border:1px solid #51472f;padding:12px 16px;border-radius:9px;white-space:nowrap;cursor:pointer}
 button.active{background:#8b7139;color:white}
@@ -83,7 +90,7 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .bad{color:#ff9999}
 .warning{color:#e6c778}
 .player-name{font-weight:bold;color:#eee5cb}
-footer{text-align:center;padding:25px;color:#777f91;font-size:12px;line-height:1.8}
+footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 button:disabled{opacity:.5;cursor:wait}
 .filters{display:grid;grid-template-columns:1fr;gap:8px}
 
@@ -99,6 +106,7 @@ button:disabled{opacity:.5;cursor:wait}
 <header>
 <h1>TRU</h1>
 <p>Alliance Management · Kingdom 2443</p>
+<div class="creator-credit">Created by ᴳᴴᴼˢᵀˢᴱᴺˢᴱᴵ</div>
 <div class="row">
 <span id="connection" class="status">Connecting to MightPulse...</span>
 <button id="refreshButton" onclick="loadAlliance()">↻ Refresh data</button>
@@ -173,11 +181,7 @@ button:disabled{opacity:.5;cursor:wait}
 
 </main>
 
-<footer>
-TRU ALLIANCE MANAGER · KINGDOM 2443
-<br>
-Created by ᴳᴴᴼˢᵀˢᴱᴺˢᴱᴵ
-</footer>
+<footer>TRU ALLIANCE MANAGER · KINGDOM 2443</footer>
 
 <script>
 const API_URL="https://mightpulse-api.peter-neighbour4.workers.dev";
@@ -334,6 +338,129 @@ function renderMembers(){
   if(sortKey==="rank"){
    x=x===null?-1:x;
    y=y===null?-1:y;
+  }
+
+  if(typeof x==="string")return x.localeCompare(String(y))*sortDir;
+  if(x===y)return a.name.localeCompare(b.name);
+  return (x<y?-1:1)*sortDir;
+ });
+
+ document.getElementById("memberHead").innerHTML=columns.map(c=>{
+  const arrow=sortKey===c.key?(sortDir===1?" ▲":" ▼"):"";
+  return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+ }).join("");
+
+ document.getElementById("memberCountText").textContent=
+  "Showing "+filtered.length+" of "+rows.length+" members · tap a column to sort";
+
+ document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>`
+  <tr>
+   <td><span class="player-name">${safe(r.name)}</span></td>
+   <td>${safe(r.rankLabel)}</td>
+   <td>${r.hasPower?format(r.power):"--"}</td>
+   <td>${r.hasKills?format(r.kills):"--"}</td>
+   <td>${r.hasLevel?safe(r.level):"--"}</td>
+  </tr>`).join(""):'<tr><td colspan="5">No members match this search.</td></tr>';
+}
+
+async function loadAlliance(){
+ if(loading)return;
+ loading=true;
+
+ const status=document.getElementById("connection");
+ const button=document.getElementById("refreshButton");
+
+ status.textContent="Connecting to MightPulse...";
+ status.className="status";
+ button.disabled=true;
+
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),30000);
+
+ try{
+  const response=await fetch(API_URL,{
+   headers:{"Accept":"application/json"},
+   signal:controller.signal,
+   cache:"no-store"
+  });
+
+  if(!response.ok)throw new Error("API returned HTTP "+response.status);
+
+  const data=await response.json();
+  const newMembers=findArray(data);
+
+  if(!newMembers.length){
+   console.log("MIGHTPULSE RESPONSE:",data);
+   throw new Error("Connected, but the member list could not be identified. Check API data structure.");
+  }
+
+  members=newMembers;
+
+  const knownNames=members.filter(m=>playerName(m)!=="Unknown").length;
+  const knownKills=members.filter(m=>playerKills(m)!==null).length;
+  const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+  const totalPower=members.reduce((sum,m)=>sum+number(playerPower(m)),0);
+  const totalKills=members.reduce((sum,m)=>sum+number(playerKills(m)),0);
+
+  document.getElementById("memberCount").textContent=members.length.toLocaleString("en-GB");
+  document.getElementById("totalPower").textContent=format(totalPower);
+  document.getElementById("totalKills").textContent=format(totalKills);
+  document.getElementById("updated").textContent=new Date().toLocaleTimeString("en-GB");
+
+  document.getElementById("summary").textContent="Successfully loaded "+members.length+" alliance members.";
+
+  document.getElementById("dataQuality").textContent=
+   "Names found: "+knownNames+"/"+members.length+
+   " · Kill records found: "+knownKills+"/"+members.length+
+   " · Power records found: "+knownPower+"/"+members.length;
+
+  document.getElementById("dataQuality").className=
+   knownNames===members.length&&knownKills===members.length&&knownPower===members.length?"status good":"status warning";
+
+  const clip=o=>JSON.stringify(o,null,1).slice(0,1800);
+
+  document.getElementById("debug").textContent=
+   "Top-level keys: "+(data&&typeof data==="object"?Object.keys(data).join(", "):typeof data)+
+   "\n\nFields on first member:\n"+(members[0]?Object.keys(members[0]).join(", "):"none")+
+   "\n\nNested player fields:\n"+(members[0]?.player?Object.keys(members[0].player).join(", "):"No player object found")+
+   "\n\nFirst member player data:\n"+(members[0]?.player?clip(members[0].player):"No player object found");
+
+  renderMembers();
+
+  status.textContent="● MightPulse connected";
+  status.className="status good";
+
+  console.log("MIGHTPULSE RESPONSE:",data);
+  console.log("MEMBERS LOADED:",members.length);
+
+ }catch(error){
+  status.textContent="● Connection/data error";
+  status.className="status bad";
+
+  document.getElementById("summary").textContent=
+   error.name==="AbortError"?"MightPulse request timed out after 30 seconds.":error.message;
+
+  console.error("TRU DATA ERROR:",error);
+
+  if(!members.length){
+   document.getElementById("memberRows").innerHTML=
+    '<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+  }
+
+ }finally{
+  clearTimeout(timeout);
+  loading=false;
+  button.disabled=false;
+ }
+}
+
+loadAlliance();
+</script>
+
+</body>
+</html>
+y;
   }
 
   if(typeof x==="string")return x.localeCompare(String(y))*sortDir;
