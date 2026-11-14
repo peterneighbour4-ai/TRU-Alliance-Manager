@@ -35,50 +35,11 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#9ba2b4;margi
 .card p{color:#9ba2b4;margin-bottom:0}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 input,select{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:8px 0}
-table{width:100%;border-collapse:collapse;min-width:760px}
-th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a;white-space:nowrap}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a}
 th{color:#e6c778;cursor:pointer;user-select:none}
 th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .count{margin:4px 0 10px}
-.tablewrap{
- overflow-x:auto;
- -webkit-overflow-scrolling:touch;
- position:relative;
-}
-.tablewrap:after{
- content:"";
- position:absolute;
- top:0;
- right:0;
- bottom:0;
- width:20px;
- pointer-events:none;
- background:linear-gradient(to right,transparent,rgba(23,29,42,.8));
-}
-.scroll-hint{
- display:flex;
- align-items:center;
- justify-content:center;
- gap:10px;
- padding:11px 8px;
- margin:10px 0;
- background:#242b3b;
- border:1px solid #51472f;
- border-radius:9px;
- color:#e6c778;
- font-size:13px;
- font-weight:bold;
- text-align:center;
-}
-.scroll-hint .arrow{
- display:inline-block;
- animation:slideHint 1.2s infinite alternate;
- font-size:18px;
-}
-@keyframes slideHint{
- from{transform:translateX(-3px)}
- to{transform:translateX(3px)}
-}
 .status{color:#9ba2b4;font-size:13px}
 .good{color:#8bd49a}
 .bad{color:#ff9999}
@@ -87,10 +48,25 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 button:disabled{opacity:.5;cursor:wait}
 .filters{display:grid;grid-template-columns:1fr;gap:8px}
+.detail-selector{
+ margin:12px 0;
+ padding:13px;
+ background:#171d2a;
+ border:1px solid #34394a;
+ border-radius:10px;
+}
+.detail-selector label{
+ display:block;
+ color:#e6c778;
+ font-size:13px;
+ font-weight:bold;
+ margin-bottom:5px;
+}
+.detail-selector select{margin:5px 0 0}
 @media(min-width:700px){
  .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .filters{grid-template-columns:1fr}
- .scroll-hint{max-width:400px}
+ .detail-selector{max-width:400px}
 }
 </style>
 </head>
@@ -141,24 +117,30 @@ button:disabled{opacity:.5;cursor:wait}
 
 <div id="members" class="tab">
 <h2>Member Management</h2>
+
 <div class="filters">
  <input id="search" placeholder="Search members..." oninput="renderMembers()">
 </div>
-<p id="memberCountText" class="status count"></p>
 
-<div class="scroll-hint">
- <span class="arrow">⇆</span>
- Swipe left or right to see all member details
- <span class="arrow">⇆</span>
+<div class="detail-selector">
+ <label for="detailSelect">Choose member detail to display</label>
+ <select id="detailSelect" onchange="renderMembers()">
+  <option value="power">Power</option>
+  <option value="kills">Kills</option>
+  <option value="rank">Rank</option>
+  <option value="level">Town Centre Level (TC)</option>
+ </select>
 </div>
 
+<p id="memberCountText" class="status count"></p>
+
 <div class="panel">
- <div class="tablewrap">
-  <table>
-   <thead><tr id="memberHead"></tr></thead>
-   <tbody id="memberRows"><tr><td colspan="5">Loading members...</td></tr></tbody>
-  </table>
- </div>
+ <table>
+  <thead><tr id="memberHead"></tr></thead>
+  <tbody id="memberRows">
+   <tr><td colspan="2">Loading members...</td></tr>
+  </tbody>
+ </table>
 </div>
 </div>
 
@@ -290,13 +272,13 @@ function findArray(data){
  return best;
 }
 
-const columns=[
- {key:"name",label:"Player"},
- {key:"rank",label:"Rank"},
- {key:"power",label:"Power"},
- {key:"kills",label:"Kills"},
- {key:"level",label:"TC"}
-];
+const detailOptions={
+ name:{label:"Player",sort:"name"},
+ rank:{label:"Rank",sort:"rank"},
+ power:{label:"Power",sort:"power"},
+ kills:{label:"Kills",sort:"kills"},
+ level:{label:"TC",sort:"level"}
+};
 
 function sortBy(key){
  if(sortKey===key)sortDir=-sortDir;
@@ -309,6 +291,8 @@ function sortBy(key){
 
 function renderMembers(){
  const search=(document.getElementById("search").value||"").toLowerCase().trim();
+ const selected=document.getElementById("detailSelect").value;
+ const detail=detailOptions[selected]||detailOptions.power;
 
  const rows=members.map(m=>({
   raw:m,
@@ -338,22 +322,29 @@ function renderMembers(){
   return (x<y?-1:1)*sortDir;
  });
 
- document.getElementById("memberHead").innerHTML=columns.map(c=>{
-  const arrow=sortKey===c.key?(sortDir===1?" ▲":" ▼"):"";
-  return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
- }).join("");
+ const arrowFor=key=>sortKey===key?(sortDir===1?" ▲":" ▼"):"";
+
+ document.getElementById("memberHead").innerHTML=
+  `<th onclick="sortBy('name')">Player${arrowFor("name")}</th>`+
+  `<th onclick="sortBy('${detail.sort}')">${detail.label}${arrowFor(detail.sort)}</th>`;
 
  document.getElementById("memberCountText").textContent=
-  "Showing "+filtered.length+" of "+rows.length+" members · tap a column to sort";
+  "Showing "+filtered.length+" of "+rows.length+" members · tap a heading to sort";
 
- document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>`
-  <tr>
-   <td><span class="player-name">${safe(r.name)}</span></td>
-   <td>${safe(r.rankLabel)}</td>
-   <td>${r.hasPower?format(r.power):"--"}</td>
-   <td>${r.hasKills?format(r.kills):"--"}</td>
-   <td>${r.hasLevel?safe(r.level):"--"}</td>
-  </tr>`).join(""):'<tr><td colspan="5">No members match this search.</td></tr>';
+ document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>{
+  let value="--";
+
+  if(selected==="power"&&r.hasPower)value=format(r.power);
+  if(selected==="kills"&&r.hasKills)value=format(r.kills);
+  if(selected==="rank")value=r.rankLabel;
+  if(selected==="level"&&r.hasLevel)value=safe(r.level);
+
+  return `
+   <tr>
+    <td><span class="player-name">${safe(r.name)}</span></td>
+    <td>${value}</td>
+   </tr>`;
+ }).join(""):'<tr><td colspan="2">No members match this search.</td></tr>';
 }
 
 async function loadAlliance(){
@@ -438,7 +429,7 @@ async function loadAlliance(){
 
   if(!members.length){
    document.getElementById("memberRows").innerHTML=
-    '<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+    '<tr><td colspan="2">'+safe(error.message)+'</td></tr>';
   }
 
  }finally{
