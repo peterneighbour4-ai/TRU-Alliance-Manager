@@ -40,13 +40,11 @@ th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a;white-space:n
 th{color:#e6c778;cursor:pointer;user-select:none}
 th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .count{margin:4px 0 10px}
-
 .tablewrap{
  overflow-x:auto;
  -webkit-overflow-scrolling:touch;
  position:relative;
 }
-
 .tablewrap:after{
  content:"";
  position:absolute;
@@ -57,7 +55,6 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
  pointer-events:none;
  background:linear-gradient(to right,transparent,rgba(23,29,42,.8));
 }
-
 .scroll-hint{
  display:flex;
  align-items:center;
@@ -73,18 +70,15 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
  font-weight:bold;
  text-align:center;
 }
-
 .scroll-hint .arrow{
  display:inline-block;
  animation:slideHint 1.2s infinite alternate;
  font-size:18px;
 }
-
 @keyframes slideHint{
  from{transform:translateX(-3px)}
  to{transform:translateX(3px)}
 }
-
 .status{color:#9ba2b4;font-size:13px}
 .good{color:#8bd49a}
 .bad{color:#ff9999}
@@ -93,7 +87,6 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 button:disabled{opacity:.5;cursor:wait}
 .filters{display:grid;grid-template-columns:1fr;gap:8px}
-
 @media(min-width:700px){
  .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .filters{grid-template-columns:1fr}
@@ -331,6 +324,136 @@ function renderMembers(){
  }));
 
  let filtered=rows.filter(r=>r.name.toLowerCase().includes(search));
+
+ filtered.sort((a,b)=>{
+  let x=a[sortKey],y=b[sortKey];
+
+  if(sortKey==="rank"){
+   x=x===null?-1:x;
+   y=y===null?-1:y;
+  }
+
+  if(typeof x==="string")return x.localeCompare(String(y))*sortDir;
+  if(x===y)return a.name.localeCompare(b.name);
+  return (x<y?-1:1)*sortDir;
+ });
+
+ document.getElementById("memberHead").innerHTML=columns.map(c=>{
+  const arrow=sortKey===c.key?(sortDir===1?" ▲":" ▼"):"";
+  return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+ }).join("");
+
+ document.getElementById("memberCountText").textContent=
+  "Showing "+filtered.length+" of "+rows.length+" members · tap a column to sort";
+
+ document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>`
+  <tr>
+   <td><span class="player-name">${safe(r.name)}</span></td>
+   <td>${safe(r.rankLabel)}</td>
+   <td>${r.hasPower?format(r.power):"--"}</td>
+   <td>${r.hasKills?format(r.kills):"--"}</td>
+   <td>${r.hasLevel?safe(r.level):"--"}</td>
+  </tr>`).join(""):'<tr><td colspan="5">No members match this search.</td></tr>';
+}
+
+async function loadAlliance(){
+ if(loading)return;
+ loading=true;
+
+ const status=document.getElementById("connection");
+ const button=document.getElementById("refreshButton");
+
+ status.textContent="Connecting to MightPulse...";
+ status.className="status";
+ button.disabled=true;
+
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),30000);
+
+ try{
+  const response=await fetch(API_URL,{
+   headers:{"Accept":"application/json"},
+   signal:controller.signal,
+   cache:"no-store"
+  });
+
+  if(!response.ok)throw new Error("API returned HTTP "+response.status);
+
+  const data=await response.json();
+  const newMembers=findArray(data);
+
+  if(!newMembers.length){
+   console.log("MIGHTPULSE RESPONSE:",data);
+   throw new Error("Connected, but the member list could not be identified. Check API data structure.");
+  }
+
+  members=newMembers;
+
+  const knownNames=members.filter(m=>playerName(m)!=="Unknown").length;
+  const knownKills=members.filter(m=>playerKills(m)!==null).length;
+  const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+  const totalPower=members.reduce((sum,m)=>sum+number(playerPower(m)),0);
+  const totalKills=members.reduce((sum,m)=>sum+number(playerKills(m)),0);
+
+  document.getElementById("memberCount").textContent=members.length.toLocaleString("en-GB");
+  document.getElementById("totalPower").textContent=format(totalPower);
+  document.getElementById("totalKills").textContent=format(totalKills);
+  document.getElementById("updated").textContent=new Date().toLocaleTimeString("en-GB");
+
+  document.getElementById("summary").textContent="Successfully loaded "+members.length+" alliance members.";
+
+  document.getElementById("dataQuality").textContent=
+   "Names found: "+knownNames+"/"+members.length+
+   " · Kill records found: "+knownKills+"/"+members.length+
+   " · Power records found: "+knownPower+"/"+members.length;
+
+  document.getElementById("dataQuality").className=
+   knownNames===members.length&&knownKills===members.length&&knownPower===members.length?"status good":"status warning";
+
+  const clip=o=>JSON.stringify(o,null,1).slice(0,1800);
+
+  document.getElementById("debug").textContent=
+   "Top-level keys: "+(data&&typeof data==="object"?Object.keys(data).join(", "):typeof data)+
+   "\n\nFields on first member:\n"+(members[0]?Object.keys(members[0]).join(", "):"none")+
+   "\n\nNested player fields:\n"+(members[0]?.player?Object.keys(members[0].player).join(", "):"No player object found")+
+   "\n\nFirst member player data:\n"+(members[0]?.player?clip(members[0].player):"No player object found");
+
+  renderMembers();
+
+  status.textContent="● MightPulse connected";
+  status.className="status good";
+
+  console.log("MIGHTPULSE RESPONSE:",data);
+  console.log("MEMBERS LOADED:",members.length);
+
+ }catch(error){
+  status.textContent="● Connection/data error";
+  status.className="status bad";
+
+  document.getElementById("summary").textContent=
+   error.name==="AbortError"?"MightPulse request timed out after 30 seconds.":error.message;
+
+  console.error("TRU DATA ERROR:",error);
+
+  if(!members.length){
+   document.getElementById("memberRows").innerHTML=
+    '<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+  }
+
+ }finally{
+  clearTimeout(timeout);
+  loading=false;
+  button.disabled=false;
+ }
+}
+
+loadAlliance();
+</script>
+
+</body>
+</html>
+);
 
  filtered.sort((a,b)=>{
   let x=a[sortKey],y=b[sortKey];
