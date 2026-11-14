@@ -83,9 +83,10 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .bad{color:#ff9999}
 .warning{color:#e6c778}
 .player-name{font-weight:bold;color:#eee5cb}
-footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
+footer{text-align:center;padding:25px;color:#777f91;font-size:12px;line-height:1.8}
 button:disabled{opacity:.5;cursor:wait}
 .filters{display:grid;grid-template-columns:1fr;gap:8px}
+
 @media(min-width:700px){
  .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .filters{grid-template-columns:1fr}
@@ -94,6 +95,7 @@ button:disabled{opacity:.5;cursor:wait}
 </style>
 </head>
 <body>
+
 <header>
 <h1>TRU</h1>
 <p>Alliance Management · Kingdom 2443</p>
@@ -111,6 +113,7 @@ button:disabled{opacity:.5;cursor:wait}
 </nav>
 
 <main>
+
 <div id="dashboard" class="tab active">
 <h2>Alliance Overview</h2>
 <div class="stats">
@@ -119,6 +122,7 @@ button:disabled{opacity:.5;cursor:wait}
  <div class="card"><div class="number" id="totalKills">--</div><p>Total Kills</p></div>
  <div class="card"><div class="number" id="updated">--</div><p>Last Updated</p></div>
 </div>
+
 <section>
 <h2>Alliance Information</h2>
 <div class="panel">
@@ -126,7 +130,10 @@ button:disabled{opacity:.5;cursor:wait}
 <p class="muted">Live alliance data powered by MightPulse.</p>
 <p id="summary" class="status">Waiting for alliance data...</p>
 <p id="dataQuality" class="status"></p>
-<details><summary>Data diagnostics</summary><pre id="debug">No data yet.</pre></details>
+<details>
+<summary>Data diagnostics</summary>
+<pre id="debug">No data yet.</pre>
+</details>
 </div>
 </section>
 </div>
@@ -163,8 +170,14 @@ button:disabled{opacity:.5;cursor:wait}
 <h2>Castle Battle</h2>
 <div class="panel">Battle planning and player assignments coming soon.</div>
 </div>
+
 </main>
-<footer>TRU ALLIANCE MANAGER · KINGDOM 2443</footer>
+
+<footer>
+TRU ALLIANCE MANAGER · KINGDOM 2443
+<br>
+Created by ᴳᴴᴼˢᵀˢᴱᴺˢᴱᴵ
+</footer>
 
 <script>
 const API_URL="https://mightpulse-api.peter-neighbour4.workers.dev";
@@ -184,16 +197,17 @@ function normalise(key){
  return String(key).toLowerCase().replace(/[^a-z0-9]/g,"");
 }
 
-/* Read a field from the member record or its nested player object. */
 function getValue(obj,keys,depth=0){
  if(!obj||typeof obj!=="object"||depth>4)return null;
  const wanted=keys.map(normalise);
+
  for(const [key,value] of Object.entries(obj)){
   if(wanted.includes(normalise(key))&&value!==null&&value!==undefined&&value!==""){
    if(typeof value==="object")return value.name??value.value??value.total??value.nickname??null;
    return value;
   }
  }
+
  for(const value of Object.values(obj)){
   if(value&&typeof value==="object"&&!Array.isArray(value)){
    const found=getValue(value,keys,depth+1);
@@ -207,19 +221,31 @@ function playerName(m){
  const value=getValue(m,["nick_name","nickname","name","player_name","playerName","username","display_name","displayName","character_name","characterName","governor_name","governorName","governor"]);
  return value===null?"Unknown":String(value);
 }
-function playerPower(m){return getValue(m,["power","might","total_power","totalPower","player_power","combat_power","overall_power"]);}
-function playerKills(m){return getValue(m,["kills","kill_points","killPoints","total_kills","totalKills","kill_count","killCount","troops_killed"]);}
-function playerLevel(m){return getValue(m,["town_center_level","townCenterLevel","townhall_level","townHallLevel","tc_level","tcLevel","city_level","level"]);}
+
+function playerPower(m){
+ return getValue(m,["power","might","total_power","totalPower","player_power","combat_power","overall_power"]);
+}
+
+function playerKills(m){
+ return getValue(m,["kills","kill_points","killPoints","total_kills","totalKills","kill_count","killCount","troops_killed"]);
+}
+
+function playerLevel(m){
+ return getValue(m,["town_center_level","townCenterLevel","townhall_level","townHallLevel","tc_level","tcLevel","city_level","level"]);
+}
+
 function playerRankNumber(m){
  const value=getValue(m,["alliance_rank","allianceRank","rank"]);
  return value===null?null:number(value);
 }
+
 function playerRankLabel(m){
  const value=getValue(m,["alliance_rank_label","allianceRankLabel","rank_label"]);
  if(value!==null)return String(value);
  const rank=playerRankNumber(m);
  return rank===null?"--":"R"+rank;
 }
+
 function number(value){
  if(value===null||value===undefined||value==="")return 0;
  if(typeof value==="object")value=value.value??value.total??value.amount??0;
@@ -227,7 +253,11 @@ function number(value){
  const result=Number(value);
  return Number.isFinite(result)?result:0;
 }
-function format(value){return number(value).toLocaleString("en-GB");}
+
+function format(value){
+ return number(value).toLocaleString("en-GB");
+}
+
 function safe(value){
  const el=document.createElement("span");
  el.textContent=String(value);
@@ -237,12 +267,16 @@ function safe(value){
 function findArray(data){
  if(Array.isArray(data))return data.length&&typeof data[0]==="object"?data:[];
  if(!data||typeof data!=="object")return [];
+
  const preferred=["members_full","members","member_list","memberList","alliance_members","allianceMembers","players","roster","alliance"];
+
  for(const key of preferred){
   const match=Object.keys(data).find(k=>normalise(k)===normalise(key));
   if(match&&Array.isArray(data[match]))return data[match];
  }
+
  let best=[],bestScore=0;
+
  for(const value of Object.values(data)){
   if(Array.isArray(value)&&value.length){
    const sample=value.find(x=>x&&typeof x==="object");
@@ -266,13 +300,19 @@ const columns=[
  {key:"kills",label:"Kills"},
  {key:"level",label:"TC"}
 ];
+
 function sortBy(key){
  if(sortKey===key)sortDir=-sortDir;
- else{sortKey=key;sortDir=key==="name"?1:-1;}
+ else{
+  sortKey=key;
+  sortDir=key==="name"?1:-1;
+ }
  renderMembers();
 }
+
 function renderMembers(){
  const search=(document.getElementById("search").value||"").toLowerCase().trim();
+
  const rows=members.map(m=>({
   raw:m,
   name:playerName(m),
@@ -285,14 +325,138 @@ function renderMembers(){
   level:number(playerLevel(m)),
   hasLevel:playerLevel(m)!==null
  }));
- let filtered=rows.filter(r=>{
-  return r.name.toLowerCase().includes(search);
- });
+
+ let filtered=rows.filter(r=>r.name.toLowerCase().includes(search));
+
  filtered.sort((a,b)=>{
-  let x,y;
-  x=a[sortKey];y=b[sortKey];
-  if(sortKey==="rank"){x=x===null?-1:x;y=y===null?-1:y;}
+  let x=a[sortKey],y=b[sortKey];
+
+  if(sortKey==="rank"){
+   x=x===null?-1:x;
+   y=y===null?-1:y;
+  }
+
   if(typeof x==="string")return x.localeCompare(String(y))*sortDir;
+  if(x===y)return a.name.localeCompare(b.name);
+  return (x<y?-1:1)*sortDir;
+ });
+
+ document.getElementById("memberHead").innerHTML=columns.map(c=>{
+  const arrow=sortKey===c.key?(sortDir===1?" ▲":" ▼"):"";
+  return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+ }).join("");
+
+ document.getElementById("memberCountText").textContent=
+  "Showing "+filtered.length+" of "+rows.length+" members · tap a column to sort";
+
+ document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>`
+  <tr>
+   <td><span class="player-name">${safe(r.name)}</span></td>
+   <td>${safe(r.rankLabel)}</td>
+   <td>${r.hasPower?format(r.power):"--"}</td>
+   <td>${r.hasKills?format(r.kills):"--"}</td>
+   <td>${r.hasLevel?safe(r.level):"--"}</td>
+  </tr>`).join(""):'<tr><td colspan="5">No members match this search.</td></tr>';
+}
+
+async function loadAlliance(){
+ if(loading)return;
+ loading=true;
+
+ const status=document.getElementById("connection");
+ const button=document.getElementById("refreshButton");
+
+ status.textContent="Connecting to MightPulse...";
+ status.className="status";
+ button.disabled=true;
+
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),30000);
+
+ try{
+  const response=await fetch(API_URL,{
+   headers:{"Accept":"application/json"},
+   signal:controller.signal,
+   cache:"no-store"
+  });
+
+  if(!response.ok)throw new Error("API returned HTTP "+response.status);
+
+  const data=await response.json();
+  const newMembers=findArray(data);
+
+  if(!newMembers.length){
+   console.log("MIGHTPULSE RESPONSE:",data);
+   throw new Error("Connected, but the member list could not be identified. Check API data structure.");
+  }
+
+  members=newMembers;
+
+  const knownNames=members.filter(m=>playerName(m)!=="Unknown").length;
+  const knownKills=members.filter(m=>playerKills(m)!==null).length;
+  const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+  const totalPower=members.reduce((sum,m)=>sum+number(playerPower(m)),0);
+  const totalKills=members.reduce((sum,m)=>sum+number(playerKills(m)),0);
+
+  document.getElementById("memberCount").textContent=members.length.toLocaleString("en-GB");
+  document.getElementById("totalPower").textContent=format(totalPower);
+  document.getElementById("totalKills").textContent=format(totalKills);
+  document.getElementById("updated").textContent=new Date().toLocaleTimeString("en-GB");
+
+  document.getElementById("summary").textContent="Successfully loaded "+members.length+" alliance members.";
+
+  document.getElementById("dataQuality").textContent=
+   "Names found: "+knownNames+"/"+members.length+
+   " · Kill records found: "+knownKills+"/"+members.length+
+   " · Power records found: "+knownPower+"/"+members.length;
+
+  document.getElementById("dataQuality").className=
+   knownNames===members.length&&knownKills===members.length&&knownPower===members.length?"status good":"status warning";
+
+  const clip=o=>JSON.stringify(o,null,1).slice(0,1800);
+
+  document.getElementById("debug").textContent=
+   "Top-level keys: "+(data&&typeof data==="object"?Object.keys(data).join(", "):typeof data)+
+   "\n\nFields on first member:\n"+(members[0]?Object.keys(members[0]).join(", "):"none")+
+   "\n\nNested player fields:\n"+(members[0]?.player?Object.keys(members[0].player).join(", "):"No player object found")+
+   "\n\nFirst member player data:\n"+(members[0]?.player?clip(members[0].player):"No player object found");
+
+  renderMembers();
+
+  status.textContent="● MightPulse connected";
+  status.className="status good";
+
+  console.log("MIGHTPULSE RESPONSE:",data);
+  console.log("MEMBERS LOADED:",members.length);
+
+ }catch(error){
+  status.textContent="● Connection/data error";
+  status.className="status bad";
+
+  document.getElementById("summary").textContent=
+   error.name==="AbortError"?"MightPulse request timed out after 30 seconds.":error.message;
+
+  console.error("TRU DATA ERROR:",error);
+
+  if(!members.length){
+   document.getElementById("memberRows").innerHTML=
+    '<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+  }
+
+ }finally{
+  clearTimeout(timeout);
+  loading=false;
+  button.disabled=false;
+ }
+}
+
+loadAlliance();
+</script>
+
+</body>
+</html>
+ypeof x==="string")return x.localeCompare(String(y))*sortDir;
   if(x===y)return a.name.localeCompare(b.name);
   return (x<y?-1:1)*sortDir;
  });
