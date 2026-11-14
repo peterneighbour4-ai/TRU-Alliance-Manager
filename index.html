@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +33,51 @@ th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a;white-space:n
 th{color:#e6c778;cursor:pointer;user-select:none}
 th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .count{margin:4px 0 10px}
-.tablewrap{overflow-x:auto}
+
+.tablewrap{
+ overflow-x:auto;
+ -webkit-overflow-scrolling:touch;
+ position:relative;
+}
+
+.tablewrap:after{
+ content:"";
+ position:absolute;
+ top:0;
+ right:0;
+ bottom:0;
+ width:20px;
+ pointer-events:none;
+ background:linear-gradient(to right,transparent,rgba(23,29,42,.8));
+}
+
+.scroll-hint{
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ gap:10px;
+ padding:11px 8px;
+ margin:10px 0;
+ background:#242b3b;
+ border:1px solid #51472f;
+ border-radius:9px;
+ color:#e6c778;
+ font-size:13px;
+ font-weight:bold;
+ text-align:center;
+}
+
+.scroll-hint .arrow{
+ display:inline-block;
+ animation:slideHint 1.2s infinite alternate;
+ font-size:18px;
+}
+
+@keyframes slideHint{
+ from{transform:translateX(-3px)}
+ to{transform:translateX(3px)}
+}
+
 .status{color:#9ba2b4;font-size:13px}
 .good{color:#8bd49a}
 .bad{color:#ff9999}
@@ -44,6 +89,7 @@ button:disabled{opacity:.5;cursor:wait}
 @media(min-width:700px){
  .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .filters{grid-template-columns:1fr}
+ .scroll-hint{max-width:400px}
 }
 </style>
 </head>
@@ -91,6 +137,13 @@ button:disabled{opacity:.5;cursor:wait}
  <input id="search" placeholder="Search members..." oninput="renderMembers()">
 </div>
 <p id="memberCountText" class="status count"></p>
+
+<div class="scroll-hint">
+ <span class="arrow">⇆</span>
+ Swipe left or right to see all member details
+ <span class="arrow">⇆</span>
+</div>
+
 <div class="panel">
  <div class="tablewrap">
   <table>
@@ -257,6 +310,74 @@ function renderMembers(){
    <td>${r.hasKills?format(r.kills):"--"}</td>
    <td>${r.hasLevel?safe(r.level):"--"}</td>
   </tr>`).join(""):'<tr><td colspan="5">No members match this search.</td></tr>';
+}
+
+async function loadAlliance(){
+ if(loading)return;
+ loading=true;
+ const status=document.getElementById("connection");
+ const button=document.getElementById("refreshButton");
+ status.textContent="Connecting to MightPulse...";
+ status.className="status";
+ button.disabled=true;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),30000);
+ try{
+  const response=await fetch(API_URL,{headers:{"Accept":"application/json"},signal:controller.signal,cache:"no-store"});
+  if(!response.ok)throw new Error("API returned HTTP "+response.status);
+  const data=await response.json();
+  const newMembers=findArray(data);
+  if(!newMembers.length){
+   console.log("MIGHTPULSE RESPONSE:",data);
+   throw new Error("Connected, but the member list could not be identified. Check API data structure.");
+  }
+  members=newMembers;
+  const knownNames=members.filter(m=>playerName(m)!=="Unknown").length;
+  const knownKills=members.filter(m=>playerKills(m)!==null).length;
+  const knownPower=members.filter(m=>playerPower(m)!==null).length;
+  const totalPower=members.reduce((sum,m)=>sum+number(playerPower(m)),0);
+  const totalKills=members.reduce((sum,m)=>sum+number(playerKills(m)),0);
+  document.getElementById("memberCount").textContent=members.length.toLocaleString("en-GB");
+  document.getElementById("totalPower").textContent=format(totalPower);
+  document.getElementById("totalKills").textContent=format(totalKills);
+  document.getElementById("updated").textContent=new Date().toLocaleTimeString("en-GB");
+  document.getElementById("summary").textContent="Successfully loaded "+members.length+" alliance members.";
+  document.getElementById("dataQuality").textContent=
+   "Names found: "+knownNames+"/"+members.length+
+   " · Kill records found: "+knownKills+"/"+members.length+
+   " · Power records found: "+knownPower+"/"+members.length;
+  document.getElementById("dataQuality").className=
+   knownNames===members.length&&knownKills===members.length&&knownPower===members.length?"status good":"status warning";
+  const clip=o=>JSON.stringify(o,null,1).slice(0,1800);
+  document.getElementById("debug").textContent=
+   "Top-level keys: "+(data&&typeof data==="object"?Object.keys(data).join(", "):typeof data)+
+   "\n\nFields on first member:\n"+(members[0]?Object.keys(members[0]).join(", "):"none")+
+   "\n\nNested player fields:\n"+(members[0]?.player?Object.keys(members[0].player).join(", "):"No player object found")+
+   "\n\nFirst member player data:\n"+(members[0]?.player?clip(members[0].player):"No player object found");
+  renderMembers();
+  status.textContent="● MightPulse connected";
+  status.className="status good";
+  console.log("MIGHTPULSE RESPONSE:",data);
+  console.log("MEMBERS LOADED:",members.length);
+ }catch(error){
+  status.textContent="● Connection/data error";
+  status.className="status bad";
+  document.getElementById("summary").textContent=
+   error.name==="AbortError"?"MightPulse request timed out after 30 seconds.":error.message;
+  console.error("TRU DATA ERROR:",error);
+  if(!members.length)document.getElementById("memberRows").innerHTML=
+   '<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+ }finally{
+  clearTimeout(timeout);
+  loading=false;
+  button.disabled=false;
+ }
+}
+loadAlliance();
+</script>
+</body>
+</html>
+d></tr>';
 }
 
 async function loadAlliance(){
