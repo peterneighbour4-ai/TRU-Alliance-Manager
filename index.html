@@ -19,9 +19,12 @@ button.active{background:#8b7139;color:white}
 main{padding:15px;max-width:1100px;margin:auto}
 .tab{display:none}
 .tab.active{display:block}
-.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .card,.panel{background:#171d2a;border:1px solid #34394a;border-radius:13px;padding:16px;margin-bottom:12px}
-.number{font-size:25px;font-weight:bold;color:#e6c778}
+.number{font-size:clamp(18px,5.2vw,25px);font-weight:bold;color:#e6c778;overflow-wrap:anywhere}
+.card{min-width:0}
+details summary{cursor:pointer;color:#e6c778}
+pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#9ba2b4;margin:10px 0 0}
 .card p{color:#9ba2b4;margin-bottom:0}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 input{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:8px 0}
@@ -36,7 +39,7 @@ th{color:#e6c778}
 footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 button:disabled{opacity:.5;cursor:wait}
 @media(min-width:700px){
-.stats{grid-template-columns:repeat(4,1fr)}
+.stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 </style>
 </head>
@@ -93,6 +96,10 @@ button:disabled{opacity:.5;cursor:wait}
 <p class="muted">Live alliance data powered by MightPulse.</p>
 <p id="summary" class="status">Waiting for alliance data...</p>
 <p id="dataQuality" class="status"></p>
+<details>
+<summary>Data diagnostics</summary>
+<pre id="debug">No data yet.</pre>
+</details>
 </div>
 </section>
 </div>
@@ -472,6 +479,95 @@ const knownNames=members.filter(m=>playerName(m)!=='Unknown').length;
 const knownKills=members.filter(m=>playerKills(m)!==null).length;
 
 const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+const totalPower=members.reduce(
+(sum,m)=>sum+number(playerPower(m)),0
+);
+
+const totalKills=members.reduce(
+(sum,m)=>sum+number(playerKills(m)),0
+);
+
+document.getElementById('memberCount').textContent=
+members.length.toLocaleString('en-GB');
+
+document.getElementById('totalPower').textContent=
+format(totalPower);
+
+document.getElementById('totalKills').textContent=
+format(totalKills);
+
+document.getElementById('updated').textContent=
+new Date().toLocaleTimeString('en-GB');
+
+document.getElementById('summary').textContent=
+'Successfully loaded '+members.length+' alliance members.';
+
+document.getElementById('dataQuality').textContent=
+'Names found: '+knownNames+'/'+members.length+
+' · Kill records found: '+knownKills+'/'+members.length+
+' · Power records found: '+knownPower+'/'+members.length;
+
+document.getElementById('dataQuality').className=
+knownNames===members.length && knownKills===members.length
+?'status good':'status warning';
+
+const withKills=members.find(m=>playerKills(m)!==null);
+const noKills=members.find(m=>playerKills(m)===null);
+const clip=o=>JSON.stringify(o,null,1).slice(0,1500);
+
+document.getElementById('debug').textContent=
+'Top-level keys: '+(data && typeof data==='object' ? Object.keys(data).join(', ') : typeof data)+
+'\n\nFields on first member:\n'+(members[0]?Object.keys(members[0]).join(', '):'none')+
+'\n\nMember WITH kills:\n'+(withKills?clip(withKills):'none')+
+'\n\nMember WITHOUT kills:\n'+(noKills?clip(noKills):'none');
+
+renderMembers();
+
+status.textContent='● MightPulse connected';
+status.className='status good';
+
+console.log('MIGHTPULSE RESPONSE:',data);
+console.log('MEMBER FIELD NAMES:',members[0]?Object.keys(members[0]):[]);
+console.log('FIRST MEMBER RECORD:',members[0]);
+console.log('MEMBERS LOADED:',members.length);
+console.log('NAMES FOUND:',knownNames);
+console.log('KILL RECORDS FOUND:',knownKills);
+
+}catch(error){
+
+status.textContent='● Connection/data error';
+status.className='status bad';
+
+document.getElementById('summary').textContent=
+error.name==='AbortError'
+?'MightPulse request timed out after 30 seconds.'
+:error.message;
+
+console.error('TRU DATA ERROR:',error);
+
+if(!members.length){
+document.getElementById('memberRows').innerHTML=
+'<tr><td colspan="4">'+safe(error.message)+'</td></tr>';
+}
+
+}finally{
+
+clearTimeout(timeout);
+loading=false;
+button.disabled=false;
+
+}
+
+}
+
+/* INITIAL LOAD */
+
+loadAlliance();
+
+</script>
+</body>
+</html>playerPower(m)!==null).length;
 
 const totalPower=members.reduce(
 (sum,m)=>sum+number(playerPower(m)),0
