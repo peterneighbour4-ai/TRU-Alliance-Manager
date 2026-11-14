@@ -28,9 +28,12 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#9ba2b4;margi
 .card p{color:#9ba2b4;margin-bottom:0}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
 input{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:8px 0}
-table{width:100%;border-collapse:collapse;min-width:550px}
-th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a}
-th{color:#e6c778}
+select{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a;white-space:nowrap}
+th{color:#e6c778;cursor:pointer;user-select:none}
+th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
+.count{margin:4px 0 10px}
 .tablewrap{overflow-x:auto}
 .status{color:#9ba2b4;font-size:13px}
 .good{color:#8bd49a}
@@ -109,19 +112,22 @@ button:disabled{opacity:.5;cursor:wait}
 
 <input id="search" placeholder="Search members..." oninput="renderMembers()">
 
+<select id="filter" onchange="renderMembers()">
+<option value="all">Show: all members</option>
+<option value="7">Inactive 7+ days</option>
+<option value="30">Inactive 30+ days</option>
+</select>
+
+<p id="memberCountText" class="status count"></p>
+
 <div class="panel">
 <div class="tablewrap">
 <table>
 <thead>
-<tr>
-<th>Player</th>
-<th>Power / Might</th>
-<th>Kills</th>
-<th>Town Centre</th>
-</tr>
+<tr id="memberHead"></tr>
 </thead>
 <tbody id="memberRows">
-<tr><td colspan="4">Loading members...</td></tr>
+<tr><td colspan="6">Loading members...</td></tr>
 </tbody>
 </table>
 </div>
@@ -393,42 +399,157 @@ el.textContent=String(value);
 return el.innerHTML;
 }
 
+/* SORTING SETUP */
+
+let sortKey='power';
+let sortDir=-1;
+
+const columns=[
+{key:'name',label:'Player',text:true},
+{key:'rank',label:'Rank'},
+{key:'power',label:'Power'},
+{key:'kills',label:'Kills'},
+{key:'level',label:'TC'},
+{key:'lastActive',label:'Last active'}
+];
+
+function sortBy(key){
+if(sortKey===key){
+sortDir=-sortDir;
+}else{
+sortKey=key;
+sortDir=key==='name'?1:-1;
+}
+renderMembers();
+}
+
+/* MEMBER ROW DATA */
+
+function playerRankNumber(m){
+const value=getValue(m,['alliance_rank','allianceRank']);
+return value===null ? null : number(value);
+}
+
+function playerRankLabel(m){
+const value=getValue(m,['alliance_rank_label','allianceRankLabel']);
+if(value!==null) return String(value);
+const rank=playerRankNumber(m);
+return rank===null ? '--' : 'R'+rank;
+}
+
+function playerLastActive(m){
+const value=getValue(m,['last_active_at','lastActiveAt','last_active','lastActive']);
+return value===null ? null : number(value);
+}
+
+function playerOnline(m){
+return getValue(m,['online'])===true;
+}
+
+function daysInactive(row){
+if(row.online) return 0;
+if(row.lastActive===null) return null;
+return Math.max(0,(Date.now()/1000-row.lastActive)/86400);
+}
+
+function agoText(row){
+if(row.online) return 'Online now';
+if(row.lastActive===null) return '--';
+const secs=Math.max(0,Date.now()/1000-row.lastActive);
+if(secs<3600) return Math.max(1,Math.floor(secs/60))+'m ago';
+if(secs<86400) return Math.floor(secs/3600)+'h ago';
+return Math.floor(secs/86400)+'d ago';
+}
+
 /* RENDER MEMBERS */
 
 function renderMembers(){
 
 const query=document.getElementById('search').value.toLowerCase();
+const filter=document.getElementById('filter').value;
 
-const filtered=members.filter(m=>{
+const rows=members.map(m=>({
+name:playerName(m),
+rank:playerRankNumber(m),
+rankLabel:playerRankLabel(m),
+power:number(playerPower(m)),
+hasPower:playerPower(m)!==null,
+kills:number(playerKills(m)),
+hasKills:playerKills(m)!==null,
+level:number(playerLevel(m)),
+hasLevel:playerLevel(m)!==null,
+lastActive:playerLastActive(m),
+online:playerOnline(m)
+}));
 
-const name=playerName(m);
+let filtered=rows.filter(r=>r.name.toLowerCase().includes(query));
 
-return name.toLowerCase().includes(query);
+if(filter!=='all'){
+const limit=Number(filter);
+filtered=filtered.filter(r=>{
+const d=daysInactive(r);
+return d!==null && d>=limit;
 });
+}
+
+filtered.sort((a,b)=>{
+
+let x=a[sortKey];
+let y=b[sortKey];
+
+/* members with no last-active time go to the bottom */
+if(sortKey==='lastActive'){
+x=a.online ? Infinity : (x===null ? -Infinity : x);
+y=b.online ? Infinity : (y===null ? -Infinity : y);
+/* "newest first" means most recently active first */
+}
+
+if(sortKey==='rank'){
+x=x===null ? -1 : x;
+y=y===null ? -1 : y;
+}
+
+if(typeof x==='string'){
+return x.localeCompare(y)*sortDir;
+}
+
+if(x===y) return a.name.localeCompare(b.name);
+
+return (x<y ? -1 : 1)*sortDir;
+});
+
+document.getElementById('memberHead').innerHTML=
+columns.map(c=>{
+const arrow=sortKey===c.key ? (sortDir===1?' ▲':' ▼') : '';
+return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+}).join('');
+
+document.getElementById('memberCountText').textContent=
+'Showing '+filtered.length+' of '+rows.length+' members · tap a column to sort';
 
 document.getElementById('memberRows').innerHTML=
 
 filtered.length ?
 
-filtered.map(m=>{
+filtered.map(r=>{
 
-const name=playerName(m);
-const power=playerPower(m);
-const kills=playerKills(m);
-const level=playerLevel(m);
+const d=daysInactive(r);
+const agoClass=r.online ? 'good' : (d!==null && d>=30 ? 'bad' : (d!==null && d>=7 ? 'warning' : ''));
 
 return `
 <tr>
-<td>${safe(name)}</td>
-<td>${power===null?'--':format(power)}</td>
-<td>${kills===null?'--':format(kills)}</td>
-<td>${level===null?'--':safe(level)}</td>
+<td>${safe(r.name)}</td>
+<td>${safe(r.rankLabel)}</td>
+<td>${r.hasPower?format(r.power):'--'}</td>
+<td>${r.hasKills?format(r.kills):'--'}</td>
+<td>${r.hasLevel?safe(r.level):'--'}</td>
+<td class="${agoClass}">${agoText(r)}</td>
 </tr>
 `;
 
 }).join('') :
 
-'<tr><td colspan="4">No members found.</td></tr>';
+'<tr><td colspan="6">No members found.</td></tr>';
 }
 
 /* LOAD ALLIANCE DATA */
@@ -468,6 +589,105 @@ const newMembers=findArray(data);
 
 if(!newMembers.length){
 console.log('MIGHTPULSE RESPONSE:',data);
+throw new Error('Connected, but the member list could not be identified. Check API data structure.');
+}
+
+members=newMembers;
+
+const knownNames=members.filter(m=>playerName(m)!=='Unknown').length;
+
+const knownKills=members.filter(m=>playerKills(m)!==null).length;
+
+const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+const totalPower=members.reduce(
+(sum,m)=>sum+number(playerPower(m)),0
+);
+
+const totalKills=members.reduce(
+(sum,m)=>sum+number(playerKills(m)),0
+);
+
+document.getElementById('memberCount').textContent=
+members.length.toLocaleString('en-GB');
+
+document.getElementById('totalPower').textContent=
+format(totalPower);
+
+document.getElementById('totalKills').textContent=
+format(totalKills);
+
+document.getElementById('updated').textContent=
+new Date().toLocaleTimeString('en-GB');
+
+document.getElementById('summary').textContent=
+'Successfully loaded '+members.length+' alliance members.';
+
+document.getElementById('dataQuality').textContent=
+'Names found: '+knownNames+'/'+members.length+
+' · Kill records found: '+knownKills+'/'+members.length+
+' · Power records found: '+knownPower+'/'+members.length;
+
+document.getElementById('dataQuality').className=
+knownNames===members.length && knownKills===members.length
+?'status good':'status warning';
+
+const withKills=members.find(m=>playerKills(m)!==null);
+const noKills=members.find(m=>playerKills(m)===null);
+const clip=o=>JSON.stringify(o,null,1).slice(0,1500);
+
+document.getElementById('debug').textContent=
+'Top-level keys: '+(data && typeof data==='object' ? Object.keys(data).join(', ') : typeof data)+
+'\n\nFields on first member:\n'+(members[0]?Object.keys(members[0]).join(', '):'none')+
+'\n\nMember WITH kills:\n'+(withKills?clip(withKills):'none')+
+'\n\nMember WITHOUT kills:\n'+(noKills?clip(noKills):'none');
+
+renderMembers();
+
+status.textContent='● MightPulse connected';
+status.className='status good';
+
+console.log('MIGHTPULSE RESPONSE:',data);
+console.log('MEMBER FIELD NAMES:',members[0]?Object.keys(members[0]):[]);
+console.log('FIRST MEMBER RECORD:',members[0]);
+console.log('MEMBERS LOADED:',members.length);
+console.log('NAMES FOUND:',knownNames);
+console.log('KILL RECORDS FOUND:',knownKills);
+
+}catch(error){
+
+status.textContent='● Connection/data error';
+status.className='status bad';
+
+document.getElementById('summary').textContent=
+error.name==='AbortError'
+?'MightPulse request timed out after 30 seconds.'
+:error.message;
+
+console.error('TRU DATA ERROR:',error);
+
+if(!members.length){
+document.getElementById('memberRows').innerHTML=
+'<tr><td colspan="6">'+safe(error.message)+'</td></tr>';
+}
+
+}finally{
+
+clearTimeout(timeout);
+loading=false;
+button.disabled=false;
+
+}
+
+}
+
+/* INITIAL LOAD */
+
+loadAlliance();
+
+</script>
+</body>
+</html>
 throw new Error('Connected, but the member list could not be identified. Check API data structure.');
 }
 
