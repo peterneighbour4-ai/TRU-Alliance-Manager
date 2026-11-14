@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -449,6 +450,203 @@ hasLevel:playerLevel(m)!==null
 }));
 
 let filtered=rows.filter(r=>r.name.toLowerCase().includes(query));
+
+filtered.sort((a,b)=>{
+
+let x=a[sortKey];
+let y=b[sortKey];
+
+if(sortKey==='rank'){
+x=x===null ? -1 : x;
+y=y===null ? -1 : y;
+}
+
+if(typeof x==='string'){
+return x.localeCompare(y)*sortDir;
+}
+
+if(x===y) return a.name.localeCompare(b.name);
+
+return (x<y ? -1 : 1)*sortDir;
+});
+
+document.getElementById('memberHead').innerHTML=
+columns.map(c=>{
+const arrow=sortKey===c.key ? (sortDir===1?' ▲':' ▼') : '';
+return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+}).join('');
+
+document.getElementById('memberCountText').textContent=
+'Showing '+filtered.length+' of '+rows.length+' members · tap a column to sort';
+
+document.getElementById('memberRows').innerHTML=
+
+filtered.length ?
+
+filtered.map(r=>{
+
+return `
+<tr>
+<td>${safe(r.name)}</td>
+<td>${safe(r.rankLabel)}</td>
+<td>${r.hasPower?format(r.power):'--'}</td>
+<td>${r.hasKills?format(r.kills):'--'}</td>
+<td>${r.hasLevel?safe(r.level):'--'}</td>
+</tr>
+`;
+
+}).join('') :
+
+'<tr><td colspan="5">No members found.</td></tr>';
+}
+
+/* LOAD ALLIANCE DATA */
+
+async function loadAlliance(){
+
+if(loading) return;
+
+loading=true;
+
+const status=document.getElementById('connection');
+const button=document.getElementById('refreshButton');
+
+status.textContent='Connecting to MightPulse...';
+status.className='status';
+
+button.disabled=true;
+
+const controller=new AbortController();
+const timeout=setTimeout(()=>controller.abort(),30000);
+
+try{
+
+const response=await fetch(API_URL,{
+headers:{'Accept':'application/json'},
+signal:controller.signal,
+cache:'no-store'
+});
+
+if(!response.ok){
+throw new Error('API returned HTTP '+response.status);
+}
+
+const data=await response.json();
+
+const newMembers=findArray(data);
+
+if(!newMembers.length){
+console.log('MIGHTPULSE RESPONSE:',data);
+throw new Error('Connected, but the member list could not be identified. Check API data structure.');
+}
+
+members=newMembers;
+
+const knownNames=members.filter(m=>playerName(m)!=='Unknown').length;
+
+const knownKills=members.filter(m=>playerKills(m)!==null).length;
+
+const knownPower=members.filter(m=>playerPower(m)!==null).length;
+
+const totalPower=members.reduce(
+(sum,m)=>sum+number(playerPower(m)),0
+);
+
+const totalKills=members.reduce(
+(sum,m)=>sum+number(playerKills(m)),0
+);
+
+document.getElementById('memberCount').textContent=
+members.length.toLocaleString('en-GB');
+
+document.getElementById('totalPower').textContent=
+format(totalPower);
+
+document.getElementById('totalKills').textContent=
+format(totalKills);
+
+document.getElementById('updated').textContent=
+new Date().toLocaleTimeString('en-GB');
+
+document.getElementById('summary').textContent=
+'Successfully loaded '+members.length+' alliance members.';
+
+document.getElementById('dataQuality').textContent=
+'Names found: '+knownNames+'/'+members.length+
+' · Kill records found: '+knownKills+'/'+members.length+
+' · Power records found: '+knownPower+'/'+members.length;
+
+document.getElementById('dataQuality').className=
+knownNames===members.length && knownKills===members.length
+?'status good':'status warning';
+
+const withKills=members.find(m=>playerKills(m)!==null);
+const noKills=members.find(m=>playerKills(m)===null);
+const clip=o=>JSON.stringify(o,null,1).slice(0,1500);
+
+/* UPDATED DIAGNOSTICS */
+
+document.getElementById('debug').textContent=
+'Top-level keys: '+(data && typeof data==='object' ? Object.keys(data).join(', ') : typeof data)+
+'\n\nFields on first member:\n'+(members[0]?Object.keys(members[0]).join(', '):'none')+
+'\n\nNESTED PLAYER FIELDS:\n'+
+(members[0]?.player && typeof members[0].player==='object'
+?Object.keys(members[0].player).join(', ')
+:'No player object found')+
+'\n\nNESTED PLAYER DATA:\n'+
+(members[0]?.player && typeof members[0].player==='object'
+?clip(members[0].player)
+:'No player object found')+
+'\n\nMember WITH kills:\n'+(withKills?clip(withKills):'none')+
+'\n\nMember WITHOUT kills:\n'+(noKills?clip(noKills):'none');
+
+renderMembers();
+
+status.textContent='● MightPulse connected';
+status.className='status good';
+
+console.log('MIGHTPULSE RESPONSE:',data);
+console.log('MEMBER FIELD NAMES:',members[0]?Object.keys(members[0]):[]);
+console.log('FIRST MEMBER RECORD:',members[0]);
+console.log('MEMBERS LOADED:',members.length);
+console.log('NAMES FOUND:',knownNames);
+console.log('KILL RECORDS FOUND:',knownKills);
+
+}catch(error){
+
+status.textContent='● Connection/data error';
+status.className='status bad';
+
+document.getElementById('summary').textContent=
+error.name==='AbortError'
+?'MightPulse request timed out after 30 seconds.'
+:error.message;
+
+console.error('TRU DATA ERROR:',error);
+
+if(!members.length){
+document.getElementById('memberRows').innerHTML=
+'<tr><td colspan="5">'+safe(error.message)+'</td></tr>';
+}
+
+}finally{
+
+clearTimeout(timeout);
+loading=false;
+button.disabled=false;
+
+}
+
+}
+
+/* INITIAL LOAD */
+
+loadAlliance();
+
+</script>
+</body>
+</html>
+ows.filter(r=>r.name.toLowerCase().includes(query));
 
 filtered.sort((a,b)=>{
 
