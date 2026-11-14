@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0b0d13">
 <title>TRU Alliance Manager</title>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#0b0d13;color:#eee5cb;font-family:Arial,sans-serif}
@@ -28,9 +26,8 @@ details summary{cursor:pointer;color:#e6c778}
 pre{white-space:pre-wrap;word-break:break-all;font-size:12px;color:#9ba2b4;margin:10px 0 0}
 .card p{color:#9ba2b4;margin-bottom:0}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
-input{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:8px 0}
-select{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:0 0 8px}
-table{width:100%;border-collapse:collapse;min-width:540px}
+input,select{background:#0b0d13;border:1px solid #51472f;color:white;padding:12px;border-radius:8px;width:100%;margin:8px 0}
+table{width:100%;border-collapse:collapse;min-width:760px}
 th,td{text-align:left;padding:12px;border-bottom:1px solid #34394a;white-space:nowrap}
 th{color:#e6c778;cursor:pointer;user-select:none}
 th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
@@ -40,16 +37,20 @@ th:first-child,td:first-child{position:sticky;left:0;background:#171d2a}
 .good{color:#8bd49a}
 .bad{color:#ff9999}
 .warning{color:#e6c778}
+.online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#65ce83;margin-right:7px;vertical-align:middle}
+.offline-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#8790a2;margin-right:7px;vertical-align:middle}
+.player-name{font-weight:bold;color:#eee5cb}
+.last-active{color:#c1c6d2}
 footer{text-align:center;padding:25px;color:#777f91;font-size:12px}
 button:disabled{opacity:.5;cursor:wait}
+.filters{display:grid;grid-template-columns:1fr;gap:8px}
 @media(min-width:700px){
-.stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .filters{grid-template-columns:2fr 1fr}
 }
 </style>
 </head>
-
 <body>
-
 <header>
 <h1>TRU</h1>
 <p>Alliance Management · Kingdom 2443</p>
@@ -67,32 +68,16 @@ button:disabled{opacity:.5;cursor:wait}
 </nav>
 
 <main>
-
 <div id="dashboard" class="tab active">
 <h2>Alliance Overview</h2>
-
 <div class="stats">
-<div class="card">
-<div class="number" id="memberCount">--</div>
-<p>Members</p>
+ <div class="card"><div class="number" id="memberCount">--</div><p>Members</p></div>
+ <div class="card"><div class="number" id="onlineCount">--</div><p>Online now</p></div>
+ <div class="card"><div class="number" id="offlineCount">--</div><p>Offline</p></div>
+ <div class="card"><div class="number" id="totalPower">--</div><p>Total Power</p></div>
+ <div class="card"><div class="number" id="totalKills">--</div><p>Total Kills</p></div>
+ <div class="card"><div class="number" id="updated">--</div><p>Last Updated</p></div>
 </div>
-
-<div class="card">
-<div class="number" id="totalPower">--</div>
-<p>Total Power</p>
-</div>
-
-<div class="card">
-<div class="number" id="totalKills">--</div>
-<p>Total Kills</p>
-</div>
-
-<div class="card">
-<div class="number" id="updated">--</div>
-<p>Last Updated</p>
-</div>
-</div>
-
 <section>
 <h2>Alliance Information</h2>
 <div class="panel">
@@ -100,32 +85,32 @@ button:disabled{opacity:.5;cursor:wait}
 <p class="muted">Live alliance data powered by MightPulse.</p>
 <p id="summary" class="status">Waiting for alliance data...</p>
 <p id="dataQuality" class="status"></p>
-<details>
-<summary>Data diagnostics</summary>
-<pre id="debug">No data yet.</pre>
-</details>
+<details><summary>Data diagnostics</summary><pre id="debug">No data yet.</pre></details>
 </div>
 </section>
 </div>
 
 <div id="members" class="tab">
 <h2>Member Management</h2>
-
-<input id="search" placeholder="Search members..." oninput="renderMembers()">
-
-<p id="memberCountText" class="status count"></p>
-
-<div class="panel">
-<div class="tablewrap">
-<table>
-<thead>
-<tr id="memberHead"></tr>
-</thead>
-<tbody id="memberRows">
-<tr><td colspan="5">Loading members...</td></tr>
-</tbody>
-</table>
+<div class="filters">
+ <input id="search" placeholder="Search members..." oninput="renderMembers()">
+ <select id="activityFilter" onchange="renderMembers()" aria-label="Filter members by activity">
+  <option value="all">All members</option>
+  <option value="online">Online now</option>
+  <option value="offline">Offline</option>
+  <option value="7">Inactive 7+ days</option>
+  <option value="14">Inactive 14+ days</option>
+  <option value="30">Inactive 30+ days</option>
+ </select>
 </div>
+<p id="memberCountText" class="status count"></p>
+<div class="panel">
+ <div class="tablewrap">
+  <table>
+   <thead><tr id="memberHead"></tr></thead>
+   <tbody id="memberRows"><tr><td colspan="7">Loading members...</td></tr></tbody>
+  </table>
+ </div>
 </div>
 </div>
 
@@ -138,318 +123,279 @@ button:disabled{opacity:.5;cursor:wait}
 <h2>Castle Battle</h2>
 <div class="panel">Battle planning and player assignments coming soon.</div>
 </div>
-
 </main>
-
 <footer>TRU ALLIANCE MANAGER · KINGDOM 2443</footer>
 
 <script>
-
 const API_URL="https://mightpulse-api.peter-neighbour4.workers.dev";
-
 let members=[];
 let loading=false;
-
-/* TAB NAVIGATION */
-
-function showTab(id,button){
-document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
-document.getElementById(id).classList.add('active');
-button.classList.add('active');
-}
-
-/* NORMALISE FIELD NAMES */
-
-function normalise(key){
-return String(key).toLowerCase().replace(/[^a-z0-9]/g,'');
-}
-
-/* FIND VALUES USING MULTIPLE POSSIBLE API FIELD NAMES */
-
-function getValue(obj,keys,depth=0){
-
-if(!obj || typeof obj!=='object' || depth>3) return null;
-
-const wanted=keys.map(normalise);
-const entries=Object.entries(obj);
-
-for(const [key,value] of entries){
-if(wanted.includes(normalise(key)) &&
-value!==null && value!==undefined && value!==''){
-if(typeof value==='object'){
-return value.name ?? value.value ?? value.total ?? value.nickname ?? null;
-}
-return value;
-}
-}
-
-for(const [key,value] of entries){
-if(value && typeof value==='object' && !Array.isArray(value)){
-const found=getValue(value,keys,depth+1);
-if(found!==null) return found;
-}
-}
-
-return null;
-}
-
-/* PLAYER NAME FIELD MAPPING */
-
-function playerName(m){
-const value=getValue(m,[
-'name',
-'player_name',
-'playerName',
-'nickname',
-'username',
-'display_name',
-'displayName',
-'character_name',
-'characterName',
-'governor_name',
-'governorName',
-'king_name',
-'kingName',
-'commander_name',
-'commanderName',
-'leader_name',
-'leaderName',
-'governor',
-'character',
-'account_name',
-'accountName'
-]);
-
-return value===null ? 'Unknown' : String(value);
-}
-
-/* POWER FIELD MAPPING */
-
-function playerPower(m){
-return getValue(m,[
-'power',
-'might',
-'total_power',
-'totalPower',
-'f_power',
-'player_power',
-'playerPower',
-'combat_power',
-'combatPower',
-'overall_power',
-'overallPower',
-'power_value',
-'powerValue'
-]);
-}
-
-/* KILL FIELD MAPPING */
-
-function playerKills(m){
-return getValue(m,[
-'kills',
-'kill',
-'kill_points',
-'killPoints',
-'total_kills',
-'totalKills',
-'total_kill',
-'totalKill',
-'kill_count',
-'killCount',
-'player_kills',
-'playerKills',
-'kill_score',
-'killScore',
-'killed_units',
-'killedUnits',
-'troops_killed',
-'troopsKilled',
-'enemy_kills',
-'enemyKills',
-'combat_kills',
-'combatKills'
-]);
-}
-
-/* TOWN CENTRE FIELD MAPPING */
-
-function playerLevel(m){
-return getValue(m,[
-'town_center_level',
-'townCenterLevel',
-'townhall_level',
-'townhallLevel',
-'town_hall_level',
-'townHallLevel',
-'tc_level',
-'tcLevel',
-'city_level',
-'cityLevel',
-'headquarters_level',
-'headquartersLevel',
-'level'
-]);
-}
-
-/* NUMBER FORMATTING */
-
-function number(value){
-
-if(value===null || value===undefined || value==='') return 0;
-
-if(typeof value==='object'){
-value=value.value ?? value.total ?? value.amount ?? 0;
-}
-
-if(typeof value==='string'){
-value=value.replace(/,/g,'').trim();
-}
-
-const result=Number(value);
-
-return Number.isFinite(result) ? result : 0;
-}
-
-function format(value){
-return number(value).toLocaleString('en-GB');
-}
-
-/* FIND THE CORRECT MEMBER ARRAY */
-
-function findArray(data){
-
-if(Array.isArray(data)){
-return data.length && typeof data[0]==='object' ? data : [];
-}
-
-if(!data || typeof data!=='object') return [];
-
-const preferred=[
-'members_full',
-'members',
-'member_list',
-'memberList',
-'alliance_members',
-'allianceMembers',
-'players',
-'roster',
-'alliance'
-];
-
-for(const key of preferred){
-
-const match=Object.keys(data).find(
-k=>normalise(k)===normalise(key)
-);
-
-if(match){
-const result=findArray(data[match]);
-if(result.length) return result;
-}
-}
-
-let best=[];
-let bestScore=0;
-
-for(const value of Object.values(data)){
-
-if(Array.isArray(value) && value.length){
-
-const sample=value.find(x=>x && typeof x==='object');
-
-if(sample){
-
-const keys=Object.keys(sample).map(normalise);
-
-let score=0;
-
-if(keys.some(k=>['name','playername','nickname','username','governorname'].includes(k))) score+=5;
-if(keys.some(k=>['power','might','totalpower'].includes(k))) score+=3;
-if(keys.some(k=>['kills','killpoints','totalkills','killcount'].includes(k))) score+=3;
-if(keys.some(k=>['playerid','userid','governorid','id'].includes(k))) score+=2;
-
-if(score>bestScore){
-bestScore=score;
-best=value;
-}
-}
-}
-
-if(value && typeof value==='object' && !Array.isArray(value)){
-const result=findArray(value);
-if(result.length) return result;
-}
-}
-
-return best;
-}
-
-/* SAFE HTML OUTPUT */
-
-function safe(value){
-const el=document.createElement('span');
-el.textContent=String(value);
-return el.innerHTML;
-}
-
-/* RENDER MEMBERS */
-
-let sortKey='power';
+let sortKey="power";
 let sortDir=-1;
 
-const columns=[
-{key:'name',label:'Player',text:true},
-{key:'rank',label:'Rank'},
-{key:'power',label:'Power'},
-{key:'kills',label:'Kills'},
-{key:'level',label:'TC'}
-];
-
-function sortBy(key){
-if(sortKey===key){
-sortDir=-sortDir;
-}else{
-sortKey=key;
-sortDir=key==='name'?1:-1;
-}
-renderMembers();
+function showTab(id,button){
+ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+ document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+ document.getElementById(id).classList.add("active");
+ button.classList.add("active");
 }
 
-/* MEMBER ROW DATA */
+function normalise(key){
+ return String(key).toLowerCase().replace(/[^a-z0-9]/g,"");
+}
 
+/* Read a field from the member record or its nested player object. */
+function getValue(obj,keys,depth=0){
+ if(!obj||typeof obj!=="object"||depth>4)return null;
+ const wanted=keys.map(normalise);
+ for(const [key,value] of Object.entries(obj)){
+  if(wanted.includes(normalise(key))&&value!==null&&value!==undefined&&value!==""){
+   if(typeof value==="object")return value.name??value.value??value.total??value.nickname??null;
+   return value;
+  }
+ }
+ for(const value of Object.values(obj)){
+  if(value&&typeof value==="object"&&!Array.isArray(value)){
+   const found=getValue(value,keys,depth+1);
+   if(found!==null)return found;
+  }
+ }
+ return null;
+}
+
+function playerName(m){
+ const value=getValue(m,["nick_name","nickname","name","player_name","playerName","username","display_name","displayName","character_name","characterName","governor_name","governorName","governor"]);
+ return value===null?"Unknown":String(value);
+}
+function playerPower(m){return getValue(m,["power","might","total_power","totalPower","player_power","combat_power","overall_power"]);}
+function playerKills(m){return getValue(m,["kills","kill_points","killPoints","total_kills","totalKills","kill_count","killCount","troops_killed"]);}
+function playerLevel(m){return getValue(m,["town_center_level","townCenterLevel","townhall_level","townHallLevel","tc_level","tcLevel","city_level","level"]);}
 function playerRankNumber(m){
-const value=getValue(m,['alliance_rank','allianceRank']);
-return value===null ? null : number(value);
+ const value=getValue(m,["alliance_rank","allianceRank","rank"]);
+ return value===null?null:number(value);
 }
-
 function playerRankLabel(m){
-const value=getValue(m,['alliance_rank_label','allianceRankLabel']);
-if(value!==null) return String(value);
-const rank=playerRankNumber(m);
-return rank===null ? '--' : 'R'+rank;
+ const value=getValue(m,["alliance_rank_label","allianceRankLabel","rank_label"]);
+ if(value!==null)return String(value);
+ const rank=playerRankNumber(m);
+ return rank===null?"--":"R"+rank;
+}
+function number(value){
+ if(value===null||value===undefined||value==="")return 0;
+ if(typeof value==="object")value=value.value??value.total??value.amount??0;
+ if(typeof value==="string")value=value.replace(/,/g,"").trim();
+ const result=Number(value);
+ return Number.isFinite(result)?result:0;
+}
+function format(value){return number(value).toLocaleString("en-GB");}
+function safe(value){
+ const el=document.createElement("span");
+ el.textContent=String(value);
+ return el.innerHTML;
 }
 
-/* RENDER MEMBERS */
+/* MightPulse activity fields are nested under each member's player object. */
+function playerObject(m){
+ return m&&m.player&&typeof m.player==="object"?m.player:m;
+}
+function isOnline(m){
+ const value=playerObject(m).online;
+ if(value===true||value===1)return true;
+ if(typeof value==="string")return ["true","1","online","yes"].includes(value.toLowerCase());
+ return false;
+}
+function lastActiveTimestamp(m){
+ const p=playerObject(m);
+ let value=p.last_active_at??p.lastActiveAt??null;
+ if(value===null||value==="")return null;
+ value=Number(value);
+ if(!Number.isFinite(value)||value<=0)return null;
+ // API timestamps are Unix seconds; tolerate milliseconds if ever supplied.
+ return value>100000000000?value/1000:value;
+}
+function daysInactive(m){
+ if(isOnline(m))return 0;
+ const timestamp=lastActiveTimestamp(m);
+ if(timestamp===null)return null;
+ return Math.max(0,(Date.now()/1000-timestamp)/86400);
+}
+function agoText(m){
+ if(isOnline(m))return "Online now";
+ const timestamp=lastActiveTimestamp(m);
+ if(timestamp===null){
+  const login=playerObject(m).last_login;
+  return login?String(login):"Unknown";
+ }
+ const seconds=Math.max(0,Date.now()/1000-timestamp);
+ if(seconds<60)return "Just now";
+ if(seconds<3600)return Math.floor(seconds/60)+" min ago";
+ if(seconds<86400)return Math.floor(seconds/3600)+" hr ago";
+ const days=Math.floor(seconds/86400);
+ return days+" day"+(days===1?"":"s")+" ago";
+}
+function findArray(data){
+ if(Array.isArray(data))return data.length&&typeof data[0]==="object"?data:[];
+ if(!data||typeof data!=="object")return [];
+ const preferred=["members_full","members","member_list","memberList","alliance_members","allianceMembers","players","roster","alliance"];
+ for(const key of preferred){
+  const match=Object.keys(data).find(k=>normalise(k)===normalise(key));
+  if(match&&Array.isArray(data[match]))return data[match];
+ }
+ let best=[],bestScore=0;
+ for(const value of Object.values(data)){
+  if(Array.isArray(value)&&value.length){
+   const sample=value.find(x=>x&&typeof x==="object");
+   if(sample){
+    const keys=Object.keys(sample).map(normalise);
+    let score=0;
+    if(keys.some(k=>["player","name","playername","nickname","username"].includes(k)))score+=5;
+    if(keys.some(k=>["power","might","totalpower"].includes(k)))score+=3;
+    if(keys.some(k=>["kills","killpoints","totalkills"].includes(k)))score+=3;
+    if(score>bestScore){bestScore=score;best=value;}
+   }
+  }
+ }
+ return best;
+}
 
+const columns=[
+ {key:"name",label:"Player"},
+ {key:"online",label:"Status"},
+ {key:"lastActive",label:"Last Active"},
+ {key:"rank",label:"Rank"},
+ {key:"power",label:"Power"},
+ {key:"kills",label:"Kills"},
+ {key:"level",label:"TC"}
+];
+function sortBy(key){
+ if(sortKey===key)sortDir=-sortDir;
+ else{sortKey=key;sortDir=key==="name"||key==="lastActive"?1:-1;}
+ renderMembers();
+}
 function renderMembers(){
+ const search=(document.getElementById("search").value||"").toLowerCase().trim();
+ const filter=document.getElementById("activityFilter").value;
+ const rows=members.map(m=>({
+  raw:m,
+  name:playerName(m),
+  online:isOnline(m),
+  lastActive:lastActiveTimestamp(m),
+  lastActiveText:agoText(m),
+  days:daysInactive(m),
+  rank:playerRankNumber(m),
+  rankLabel:playerRankLabel(m),
+  power:number(playerPower(m)),
+  hasPower:playerPower(m)!==null,
+  kills:number(playerKills(m)),
+  hasKills:playerKills(m)!==null,
+  level:number(playerLevel(m)),
+  hasLevel:playerLevel(m)!==null
+ }));
+ let filtered=rows.filter(r=>{
+  if(!r.name.toLowerCase().includes(search))return false;
+  if(filter==="online"&&!r.online)return false;
+  if(filter==="offline"&&r.online)return false;
+  if(["7","14","30"].includes(filter)&&(r.online||r.days===null||r.days<Number(filter)))return false;
+  return true;
+ });
+ filtered.sort((a,b)=>{
+  let x,y;
+  if(sortKey==="online"){x=a.online?1:0;y=b.online?1:0;}
+  else if(sortKey==="lastActive"){x=a.lastActive??0;y=b.lastActive??0;}
+  else{x=a[sortKey];y=b[sortKey];}
+  if(sortKey==="rank"){x=x===null?-1:x;y=y===null?-1:y;}
+  if(typeof x==="string")return x.localeCompare(String(y))*sortDir;
+  if(x===y)return a.name.localeCompare(b.name);
+  return (x<y?-1:1)*sortDir;
+ });
+ document.getElementById("memberHead").innerHTML=columns.map(c=>{
+  const arrow=sortKey===c.key?(sortDir===1?" ▲":" ▼"):"";
+  return `<th onclick="sortBy('${c.key}')">${c.label}${arrow}</th>`;
+ }).join("");
+ document.getElementById("memberCountText").textContent=
+  "Showing "+filtered.length+" of "+rows.length+" members · tap a column to sort";
+ document.getElementById("memberRows").innerHTML=filtered.length?filtered.map(r=>`
+  <tr>
+   <td><span class="player-name">${safe(r.name)}</span></td>
+   <td>${r.online?'<span class="online-dot"></span><span class="good">Online</span>':'<span class="offline-dot"></span><span class="muted">Offline</span>'}</td>
+   <td class="last-active">${safe(r.lastActiveText)}</td>
+   <td>${safe(r.rankLabel)}</td>
+   <td>${r.hasPower?format(r.power):"--"}</td>
+   <td>${r.hasKills?format(r.kills):"--"}</td>
+   <td>${r.hasLevel?safe(r.level):"--"}</td>
+  </tr>`).join(""):'<tr><td colspan="7">No members match this filter.</td></tr>';
+}
 
-const query=document.getElementById('search').value.toLowerCase();
-
-const rows=members.map(m=>({
-name:playerName(m),
-rank:playerRankNumber(m),
-rankLabel:playerRankLabel(m),
-power:number(playerPower(m)),
-hasPower:playerPower(m)!==null,
-kills:number(playerKills(m)),
-hasKills:playerKills(m)!==null,
-level:number(playerLevel(m)),
-hasLevel:playerLevel(m)!==null
-}));
-
-let filtered=rows.filter(r=>r.name.toLowerCase().includes(query));
+async function loadAlliance(){
+ if(loading)return;
+ loading=true;
+ const status=document.getElementById("connection");
+ const button=document.getElementById("refreshButton");
+ status.textContent="Connecting to MightPulse...";
+ status.className="status";
+ button.disabled=true;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),30000);
+ try{
+  const response=await fetch(API_URL,{headers:{"Accept":"application/json"},signal:controller.signal,cache:"no-store"});
+  if(!response.ok)throw new Error("API returned HTTP "+response.status);
+  const data=await response.json();
+  const newMembers=findArray(data);
+  if(!newMembers.length){
+   console.log("MIGHTPULSE RESPONSE:",data);
+   throw new Error("Connected, but the member list could not be identified. Check API data structure.");
+  }
+  members=newMembers;
+  const knownNames=members.filter(m=>playerName(m)!=="Unknown").length;
+  const knownKills=members.filter(m=>playerKills(m)!==null).length;
+  const knownPower=members.filter(m=>playerPower(m)!==null).length;
+  const online=members.filter(isOnline).length;
+  const totalPower=members.reduce((sum,m)=>sum+number(playerPower(m)),0);
+  const totalKills=members.reduce((sum,m)=>sum+number(playerKills(m)),0);
+  document.getElementById("memberCount").textContent=members.length.toLocaleString("en-GB");
+  document.getElementById("onlineCount").textContent=online.toLocaleString("en-GB");
+  document.getElementById("offlineCount").textContent=(members.length-online).toLocaleString("en-GB");
+  document.getElementById("totalPower").textContent=format(totalPower);
+  document.getElementById("totalKills").textContent=format(totalKills);
+  document.getElementById("updated").textContent=new Date().toLocaleTimeString("en-GB");
+  document.getElementById("summary").textContent="Successfully loaded "+members.length+" alliance members.";
+  document.getElementById("dataQuality").textContent=
+   "Names found: "+knownNames+"/"+members.length+
+   " · Kill records found: "+knownKills+"/"+members.length+
+   " · Power records found: "+knownPower+"/"+members.length+
+   " · Online: "+online+"/"+members.length;
+  document.getElementById("dataQuality").className=
+   knownNames===members.length&&knownKills===members.length?"status good":"status warning";
+  const clip=o=>JSON.stringify(o,null,1).slice(0,1800);
+  document.getElementById("debug").textContent=
+   "Top-level keys: "+(data&&typeof data==="object"?Object.keys(data).join(", "):typeof data)+
+   "\n\nFields on first member:\n"+(members[0]?Object.keys(members[0]).join(", "):"none")+
+   "\n\nNested player fields:\n"+(members[0]?.player?Object.keys(members[0].player).join(", "):"No player object found")+
+   "\n\nFirst member player data:\n"+(members[0]?.player?clip(members[0].player):"No player object found");
+  renderMembers();
+  status.textContent="● MightPulse connected";
+  status.className="status good";
+  console.log("MIGHTPULSE RESPONSE:",data);
+  console.log("MEMBERS LOADED:",members.length);
+ }catch(error){
+  status.textContent="● Connection/data error";
+  status.className="status bad";
+  document.getElementById("summary").textContent=
+   error.name==="AbortError"?"MightPulse request timed out after 30 seconds.":error.message;
+  console.error("TRU DATA ERROR:",error);
+  if(!members.length)document.getElementById("memberRows").innerHTML=
+   '<tr><td colspan="7">'+safe(error.message)+'</td></tr>';
+ }finally{
+  clearTimeout(timeout);
+  loading=false;
+  button.disabled=false;
+ }
+}
+loadAlliance();
+</script>
+</body>
+</html>
+rows.filter(r=>r.name.toLowerCase().includes(query));
 
 filtered.sort((a,b)=>{
 
